@@ -1,0 +1,2 @@
+# Patient_Survival_Prediction
+There are various factors given, which are involved when a patient is hospitalized. On the basis of these factors, we will try to predict whether the patient will survive or not. The predictors of in-hospital mortality for admitted patients remain poorly characterized. We aimed to develop and validate a prediction model for all-cause in-hospital mortality among admitted patients
