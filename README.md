@@ -34,3 +34,9 @@ This section list major R frameworks/libraries used to build this project:
 - library(caret)
 - library(mice)
 - library(neuralnet)
+
+## Contact
+
+Bahram Khanlarov - bahram.khanlarov@stud.hslu.ch
+
+Project Link: https://github.com/bkhan1820/Patient_Survival_Prediction
