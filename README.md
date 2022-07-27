@@ -13,4 +13,7 @@ In this article, the steps are followed as below:
 
 1. Data preperation, you can find the R script <ins>[here](https://github.com/bkhan1820/Patient_Survival_Prediction/blob/main/Data%20Preperation%20Patient_Survival.R)</ins>
 2. Data Visualisation, R script <ins>[here](https://github.com/bkhan1820/Patient_Survival_Prediction/blob/main/Data%20Visualisation%20Patient_Survival.R)</ins>
-3. Model Fitting
+3. Model Fitting and Cross Validation
+4. Logistic Regression
+5. Support Vector Machine 
+6. Neural networks
