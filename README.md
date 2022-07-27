@@ -1,7 +1,7 @@
 # Patient_Survival_Prediction
 
 
-## Introduction
+## About The Project
 
 For this collaborative project conducted with Aleksandra Bundovska, Yang Bai, we decided to use the data set "Patient_survival_prediction" found on <ins>[Kaggle](https://www.kaggle.com/datasets/mitishaagarwal/patient)</ins>. This data is initially from MIT’s GOSSIS (Global Open Source Severity of Illness Score) initiative and was collected in USA, in 2021. It contains information about patients who were admitted to the intensive care unit (ICU).
 
@@ -17,3 +17,20 @@ In this article, the steps are followed as below:
 4. Logistic Regression
 5. Support Vector Machine 
 6. Neural networks
+
+## Built With
+
+This section list major R frameworks/libraries used to build this project:
+
+- library(plyr)
+- library(dplyr)
+- library(ggplot2)
+- library(tidyverse)
+- library(gridExtra) 
+- library(reshape2)
+- require(magrittr)
+- library(tidyr)
+- library(explore)
+- library(caret)
+- library(mice)
+- library(neuralnet)
