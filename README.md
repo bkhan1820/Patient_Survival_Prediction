@@ -11,6 +11,6 @@ There are various factors given, which are involved when a patient is hospitaliz
 
 In this article, the steps are followed as below:
 
-- Data preperation (Data Cleaning)
+- Data preperation, you can find the r script <ins>[here](https://github.com/bkhan1820/Patient_Survival_Prediction/blob/main/Data%20Preperation%20Patient_Survival.R)</ins>
 - Data Visualisation
 - 
