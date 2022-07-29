@@ -35,6 +35,12 @@ This section list major R frameworks/libraries used to build this project:
 - library(mice)
 - library(neuralnet)
 
+## Some Interesting highlights from projects:
+
+- Graphical Analysis:
+
+
+
 ## Contact
 
 Bahram Khanlarov - bahram.khanlarov@stud.hslu.ch
