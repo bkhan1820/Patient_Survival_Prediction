@@ -39,7 +39,13 @@ This section list major R frameworks/libraries used to build this project:
 
 - Graphical Analysis:
 
-
+```
+library(ggplot2)
+ggplot(p_survival_new_dropna, aes(x = hospital_death)) +
+  geom_bar(width=0.5, fill = "coral") +
+  geom_text(stat='count', aes(label=stat(count)), vjust=-0.5) +
+  theme_classic()
+```
 
 ## Contact
 
