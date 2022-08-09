@@ -35,33 +35,6 @@ This section list major R frameworks/libraries used to build this project:
 - library(mice)
 - library(neuralnet)
 
-## Some Interesting highlights from projects:
-
-## Cross Validation
-
-Cross-validation refers to a set of methods for measuring the performance of a given predictive model on new test data sets.
-
-The basic idea, behind cross-validation techniques, consists of dividing the data into two sets:
-- The training set, used to train (i.e. build) the model
-- The testing set (or validation set), used to test (i.e. validate) the model by estimating the prediction error.
-
-The different cross-validation methods for assessing model performance. We will look at the following approaches:
-- Validation set approach (or data split)
-- Leave One Out Cross Validation
-- k-fold Cross Validation
-- Repeated k-fold Cross Validation
-
-## The Validation set Approach
-
-The validation set approach consists of randomly splitting the data into two sets: one set is used to train the model and the remaining other set is used to test the model.
-
-The process works as follow:
-
-- Build (train) the model on the training data set
-- Apply the model to the test data set to predict the outcome of new unseen observations
-- Quantify the prediction error as the mean squared difference between the observed and the predicted outcome values.
-
-The example below splits the patient_survival data set so that 80% is used for training a logistic regression model and 20% is used to evaluate the model performance.
 
 
 
