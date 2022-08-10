@@ -1,0 +1,654 @@
+---
+title: 'ICU Survival Analysis  '
+author: "Aleksandra Bundovska, Yang Bai(Miranda), Bahram Khanlarov"
+date: "6/3/2022"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+geometry: margin=2cm
+documentclass: report
+subtitle: Applied Machine Learning and Predictive Modeling  Lucerne University of
+  Applied Sciences and Arts May 2022
+toc: yes
+---
+
+
+"\pagebreak"
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE,cache =TRUE)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(gridExtra) 
+library(reshape2)
+require(magrittr)
+library(tidyr)
+library(explore)
+library(caret)
+library(mice)
+library(neuralnet)
+```
+
+### Introduction  
+
+For our project we decided to use the data set "Patient_survival_prediction" found on Kaggle. This data is initially from
+MIT’s GOSSIS (Global Open Source Severity of Illness Score) initiative and was collected in USA, in 2021.
+It contains information about patients who were admitted to the intensive care unit (ICU).
+
+This data set has 91713 observations and 85 variables.
+There are various factors given, which are involved when a patient is hospitalized. We aim to analyse which factors have
+an influence on patient's survival rate during hospitalization. 
+Moreover on the basis of these factors, we will try to predict patient survival during hospitalization.
+
+ 
+### Basic understanding of the data
+
+```{r}
+getwd()
+```
+
+```{r  reading csv file}
+p_survival <- read.csv("Patient_survival_prediction.csv", header = TRUE, 
+                   stringsAsFactors = TRUE)
+```
+
+There are 91713 observations of 85 variables.
+
+```{r  internal structure, results='hide'}
+str(p_survival)
+```
+
+```{r}
+levels(p_survival$gender)
+```
+
+We noticed that gender factor has 3 level but we want to have only 'F' and 'M',therefore we replace first empty factor with NA to drop it later.
+```{r}
+p_survival[p_survival$gender=="",]<-NA
+```
+
+For the purpose of this project we will not use all of the variables given. We select the columns we need for further data analysis and create new data set called p_survival_new. For this project we will only use 20 variables.
+
+```{r new data set}
+library("magrittr") 
+library("dplyr")
+p_survival_new <- p_survival %>% select(hospital_id,age,bmi,elective_surgery,ethnicity, gender,height,
+                                       pre_icu_los_days, weight,apache_2_diagnosis, cirrhosis,
+                                       diabetes_mellitus, hepatic_failure, immunosuppression,   leukemia,lymphoma,solid_tumor_with_metastasis, apache_3j_bodysystem,apache_2_bodysystem,hospital_death)
+```
+
+```{r head, results='hide'}
+head(p_survival_new)
+summary(p_survival_new)
+```
+
+Our new data set has 91713 obs. of 20 variables
+
+```{r NAs}
+apply(p_survival_new, MARGIN = 2, FUN = anyNA)
+```
+
+We can already spot out columns with NAs.(all TRUE values)
+
+```{r missing pattern, results='hide'}
+library("mice")
+missing_pattern <- md.pattern(p_survival_new, rotate.names = TRUE)
+```
+The next line shows us exactly how much values are missing in each column.
+
+```{r  total NAs}
+apply(p_survival_new, MARGIN = 2, FUN = function(x) {sum(is.na(x))})
+```
+
+Since NAs could have an impact on analysis, it is decided that rows containing NAs will be dropped.
+The script will dropout any row that has missing data on it remaining with only the untouched rows and save them
+into another object called p_survival_new_dropna.
+This way we can keep both the original dataset and also the modified dataset in the working environment.
+Later on, we separate the survivor and non survivor data from the modified dataset.
+
+```{r dropna}
+p_survival_new_dropna <- p_survival_new[rowSums(is.na(p_survival_new)) <=0,]
+
+```
+
+Since categorical variables enter into statistical models differently than continuous variables, storing data as factors insures that the modeling functions will treat such data correctly.Choose some columns to coerce to factors:
+
+```{r as factor}
+
+cols <- c('gender','elective_surgery', 'ethnicity','cirrhosis','diabetes_mellitus','hepatic_failure',  'immunosuppression','leukemia',
+          'lymphoma','solid_tumor_with_metastasis','apache_3j_bodysystem','apache_2_bodysystem','hospital_death')
+p_survival_new_dropna[cols] <- lapply(p_survival_new_dropna[cols],factor)
+```
+
+```{r Check the result, results='hide'}
+sapply(p_survival_new_dropna, class)
+```
+
+We can observe that 6904 patients died during hospitalization and 76465 survived.
+
+```{r}
+unique(p_survival_new_dropna$hospital_death)
+
+sum(p_survival_new_dropna$hospital_death==1)
+sum(p_survival_new_dropna$hospital_death==0)
+
+```
+
+We separate the patients based on survival/death in two datasets.
+
+```{r  creating new d.set}
+p_survival_new_dropna_death <- p_survival_new_dropna[p_survival_new_dropna$hospital_death==1,]
+p_survival_new_dropna_non_death <- p_survival_new_dropna[p_survival_new_dropna$hospital_death==0,]
+```
+
+### Graphical Analysis
+
+```{r  heat map, results='hide'}
+p_survival_new_dropna_death_matrix <- data.matrix(p_survival_new_dropna_death)
+p_survival_new_dropna_death_heatmap <- heatmap(p_survival_new_dropna_death_matrix, col = cm.colors(256), scale="column", margins=c(5,5))
+```
+
+On this plot we can observe the total number of patients who survived
+respectively died during hospitalization. 76'456 patients survived and 6094 died. 
+
+```{r}
+## number of survivals and non survivals
+
+library(ggplot2)
+ggplot(p_survival_new_dropna, aes(x = hospital_death)) +
+  geom_bar(width=0.5, fill = "coral") +
+  geom_text(stat='count', aes(label=stat(count)), vjust=-0.5) +
+  theme_classic()
+```
+
+We notice that among the survived patients 34'644 are Females and 41'812 Males.
+Among the ones that didn't survived 3'198 are Females and 3'706 Males.
+
+```{r}
+## survival by gender
+
+ggplot(p_survival_new_dropna, aes(x = hospital_death, fill=gender)) +
+ geom_bar(position = position_dodge()) +
+ geom_text(stat='count', 
+           aes(label=stat(count)), 
+           position = position_dodge(width=1), vjust=-0.5)+
+ theme_classic()
+```
+
+We can identify that there is a relationship between age and number of deaths.
+With increase in age we observe increased number of deaths.
+There is a decreasing trend after 80, since median age is around 80.
+
+```{r}
+ggplot(p_survival_new_dropna_death, aes(x =age)) +
+ geom_density(fill='coral')
+```
+Here we have created a temporary attribute called Discretized.age which groups the ages with a span of 10 years.
+We discretize the age using the cut() function and specify the cuts in a vector.
+The temporary attribute it discarded after plotting.
+Most of the patients that died during hospitalization are in the age range from 70-80 years old.
+
+```{r}
+#Discretize age to plot survival
+p_survival_new_dropna_death$Discretized.age = cut(p_survival_new_dropna_death$age, c(0,10,20,30,40,50,60,70,80,100))
+# Plot discretized age
+ggplot(p_survival_new_dropna_death, aes(x = Discretized.age, fill=hospital_death)) +
+  geom_bar(position = position_dodge()) +
+  geom_text(stat='count', aes(label=stat(count)), position = position_dodge(width=1), vjust=-0.5)+
+  theme_classic()
+#data.frame$Discretized.age = NULL
+```
+Calculating the mean weight of male and female
+
+```{r}
+### Calculate the mean of each group
+library(plyr)
+mu <- ddply(p_survival_new_dropna_death, "gender", summarise, grp.mean=mean(weight))
+head(mu)
+```
+
+After checking the weight variable among non-survived patients, we could potentially assume positive relationship between weight and death rate.
+The average weight of male patients is higher than female patients and thus can lead to the assumption of increased number of deaths among male patients.
+
+```{r}
+ggplot(p_survival_new_dropna_death, aes(x=weight, fill=gender)) +
+  geom_density(alpha=0.4)+
+  geom_vline(data=mu, aes(xintercept=grp.mean, color=gender),
+             linetype="dashed")
+```
+
+
+```{r}
+ggplot(p_survival_new_dropna_death, aes(x=weight))+
+  geom_density()+facet_grid(gender ~ .)+
+geom_vline(data=mu, aes(xintercept=grp.mean, color="red"),
+             linetype="dashed")
+```
+
+The height of male patients is still higher than female patients but it is hard to assume a relationship between height and death rate.
+
+```{r}
+ggplot(p_survival_new_dropna_death, aes(x=height, color=gender, fill=gender)) + 
+ geom_histogram(aes(y=..density..), alpha=0.5, 
+                position="identity")+
+ geom_density(alpha=.2) 
+```
+Among the patients that died respectively survived during hospitalization, Caucasian are the majority, 5'366 patients died and 58'685 survived.
+The lowest death respectively survival rate have the Native Americans, 67 died, 681 surrvived.
+
+```{r}
+ggplot(p_survival_new_dropna, aes(x = hospital_death, fill=ethnicity)) +
+ geom_bar(position = position_dodge()) +
+ geom_text(stat='count', 
+           aes(label=stat(count)), 
+           position = position_dodge(width=1), 
+           vjust=-0.5)+
+ theme_classic()
+```
+APACHE II ("Acute Physiology and Chronic Health Evaluation II") is a severity-of-disease classification system, one of several ICU scoring systems. 
+It is applied within 24 hours of admission of a patient to an intensive care unit (ICU). 
+The point score is calculated from 12 admission physiologic variables comprising the Acute Physiology Score, the patient's age, and **chronic health status**.
+
+Here we have an overview just of the **chronic health status** and its effect on death rate.
+
+The majority of the patients that died, suffered from cardiovascular diseases.
+
+```{r}
+
+
+ggplot(p_survival_new_dropna_death, aes(x = hospital_death, fill=apache_2_bodysystem)) +
+ geom_bar(position = position_dodge()) +
+ geom_text(stat='count', 
+           aes(label=stat(count)), 
+           position = position_dodge(width=2), 
+           vjust=-0.5)+
+ theme_classic()
+```
+
+We implement explore package.The explore package automatically checks if an attribute is categorical or numerical, chooses the best plot-type and handles outliers (auto scaling).
+
+Result shows that the majority of the male patients who died during hospitalization were Asian, 62.4%, for the female patients 
+of Asian origin the rate is 37.6%
+The majority of female patients who died during hospitalization were Native American, 49.3%, (male Native American 50.7%), 
+Not far behind are the African American women 49.2% (male African American 50.8%).
+
+```{r death gender ethnicity}
+library(explore)
+p_survival_new_dropna_death %>% explore(gender, target = ethnicity)
+```
+
+In total 6.9% of the non-survived patients had an elective surgery.
+
+```{r}
+p_survival_new_dropna_death %>% explore(elective_surgery, target = hospital_death, split = TRUE)
+```
+
+59.8% of the male patients and 40.2% of the female patients who died during hospitalization had cirrhosis
+(cirrhosis can be found in patients who have a history of heavy alcohol use with portal hypertension and varices).
+
+```{r}
+p_survival_new_dropna_death %>% explore(gender, target=cirrhosis)
+```
+Diabetes also plays an important role, since 21.1% from the non-survived patients had it, among other factors.
+
+```{r weight diabetes}
+p_survival_new_dropna_death %>% explore(diabetes_mellitus, target=hospital_death,split=TRUE)
+```
+
+### Fitting Models
+
+Our response (dependent) variable 'hospital_death' is binary qualitative (1:0). The approach to develop
+a probability model for binary response variables is to use Logistic Regression.
+To deal with the peculiarities of binary data, we use a link function and assume a distribution other than the normal.
+Logistic Regression Models are fitted via the glm() function, by setting the family argument to binomial.
+
+#### Cross Validation
+
+When fitting a model we must decide when it is complex enough, this decision can be based on cross validation.
+When using cross validation we usually aim at finding a model that maximizes the predictive
+performance. A too simplistic model may miss some important features of the data and perform poorly. On
+the other hand, a too complex model may lead to a poor predictive performance
+
+As a measure of predictive performance we are going to use the proportion of correctly classified observations
+for the test sample (Confusion Matrix).
+
+First we start with the very complex model, including all variables(excluding only hospital_id) 
+
+```{r, results='hide'}
+glm.very_complex <- glm(hospital_death ~ . -hospital_id,
+                      data = p_survival_new_dropna,
+                      family = "binomial")
+summary(glm.very_complex)
+
+
+
+fit.glm_very_complex <- ifelse(fitted(glm.very_complex) < 0.5,
+                             yes = 0, no = 1)
+
+hd.obs.fit_very_complex <- data.frame(obs = p_survival_new_dropna$hospital_death,
+                                    fitted = fit.glm_very_complex)
+
+#The best way to compare the observed and the discretised fitted values is to summarise them into a table.
+table(hd.obs.fit_very_complex$obs)
+```
+From the confusion matrix we see that 76'413 observations were
+correctly labelled to be survived at the same time 29 observations were correctly labelled to be dead.
+However, 43 observations were wrongly classified (by this model) to be dead when in reality they are
+survived. On the other hand, the model mis-classified 6'875 observations as being survived, when in reality they
+were not.
+
+```{r}
+#Confusion matrix very complex model
+table(obs = hd.obs.fit_very_complex$obs,
+      fit = hd.obs.fit_very_complex$fitted)
+```
+Less complex Model, excluding some of the variables
+
+```{r, results='hide'}
+glm.complex <- glm(hospital_death ~ bmi + age  + diabetes_mellitus+  hepatic_failure + 
+                                         immunosuppression + apache_3j_bodysystem +  cirrhosis + leukemia + 
+                                         lymphoma + solid_tumor_with_metastasis,
+                                          data = p_survival_new_dropna,
+                                          family = "binomial")
+
+summary(glm.complex)
+
+
+fit.glm_complex <- ifelse(fitted(glm.complex) < 0.5,
+                               yes = 0, no = 1)
+
+hd.obs.fit_complex <- data.frame(obs = p_survival_new_dropna$hospital_death,
+                                      fitted = fit.glm_complex)
+
+
+table(hd.obs.fit_complex$obs)
+```
+
+From the confusion matrix we see that 76'452 observations were
+correctly labelled to be survived at the same time 3 observations were correctly labelled to be dead.
+However, 4 observations were wrongly classified (by this model) to be dead when in reality they are
+survived. On the other hand, the model mis-classified 6'901 observations as being survived, when in reality they
+were not
+
+```{r}
+#Confusion matrix complex model
+table(obs = hd.obs.fit_complex$obs,
+      fit = hd.obs.fit_complex$fitted)
+
+```
+Simple Model, using only couple of variables 
+
+```{r, results='hide'}
+glm.simple <- glm(hospital_death ~ age + immunosuppression + apache_3j_bodysystem + leukemia +  solid_tumor_with_metastasis,
+                      data = p_survival_new_dropna,
+                      family = "binomial")
+
+summary(glm.simple)
+
+fit.glm_simple <- ifelse(fitted(glm.simple) < 0.5,
+                          yes = 0, no = 1)
+
+hd.obs.fit_simple <- data.frame(obs = p_survival_new_dropna$hospital_death,
+                                 fitted = fit.glm_simple)
+
+table(hd.obs.fit_simple$obs)
+```
+
+From the confusion matrix we see that 76'455 observations were
+correctly labelled to be survived at the same time 1 observation was correctly labelled to be dead.
+However, 1 observation was wrongly classified (by this model) to be dead when in reality they are
+survived. On the other hand, the model mis-classified 6'903 observations as being survived, when in reality they
+were not.
+
+```{r}
+#Confusion matrix simple model
+table(obs = hd.obs.fit_simple$obs,
+      fit = hd.obs.fit_simple$fitted)
+```
+As mentioned before, we are going to use the confusion matrix as a measure of predictive performance.
+
+Proportion of correctly classified observations:
+  - In the first *very complex* model is 76'422
+  - In the second *complex* model is **76'455**
+  - In the third *simple* model is 76'456
+
+For our further analysis we are going to use the *complex* model. 
+ 
+### Logistic Regression
+
+```{r}
+glm.hosp_death <- glm(hospital_death ~ bmi + age + diabetes_mellitus + hepatic_failure + 
+                      immunosuppression + apache_3j_bodysystem + cirrhosis + leukemia + 
+                      lymphoma + solid_tumor_with_metastasis,
+                data = p_survival_new_dropna,
+                family = "binomial")
+```
+
+
+```{r}
+summary(glm.hosp_death)
+```
+
+Let’s have a look at the fitted values
+
+```{r results='hide'}
+fitted(glm.hosp_death) %>% round(digits = 2)
+```
+
+To compare the fitted values with the observed values, which are indeed binary (0 or 1), we can also discretise
+the fitted values into 0 and 1. In order to do that, we use a cutoff of 0.5.
+
+```{r}
+fitted.hosp_death <- ifelse(fitted(glm.hosp_death) < 0.5,
+                           yes = 0, no = 1)
+```
+
+```{r results='hide'}
+head(fitted.hosp_death)
+```
+
+Let’s compare the observed and fitted values
+
+```{r}
+d.obs.fit_hosp_death <- data.frame(obs = p_survival_new_dropna$hospital_death,
+                             fitted = fitted.hosp_death)
+
+head(d.obs.fit_hosp_death)
+```
+
+The best way to compare the observed and the discretised fitted values is to summarise them into a table
+
+```{r}
+table(d.obs.fit_hosp_death$obs)
+```
+
+#### Confusion matrix
+
+The diagonal entries of this matrix represent correctly labelled observations. For example, 76452 observations were
+correctly labelled to be survived at the same time 3 observations were correctly labelled to be dead.
+However, 4 observations were wrongly classified (by this model) to be dead when in reality they are
+survived. On the other hand, the model mis-classified 6901 observations as being survived, when in reality they
+were not.
+
+```{r}
+table(obs = d.obs.fit_hosp_death$obs,
+      fit = d.obs.fit_hosp_death$fitted)
+```
+
+The confusion matrix can also be expressed as percentages, rather than counts in each cell
+
+So, we can state that 92% of the observations were correctly labelled (0.92% + 0.0% i.e. the two diagonal entries). 
+While, for example 8% of the observations were wrongly labelled as dead (i.e. “1”), when in
+reality they were “0”.
+
+```{r}
+table(obs = d.obs.fit_hosp_death$obs,
+      fit = d.obs.fit_hosp_death$fitted)%>%
+  prop.table() %>%
+  round(digits = 2)
+```
+
+#### Interpreting the coefficients of GLM binomial model
+
+As link functions are used, the interpretation of these coefficients must be adapted. In particular, we can
+interpret the coefficients by applying the exponential function.
+
+
+Ratio higher then 1 would mean that the outcome people dying during hospitalization
+is more likely then the outcome people surviving. And vice-versa for values lower then 1. 
+Moreover, by using the function: exp, we can see how the odds ratio compares the disease group with the health group.
+The odds ratio is a great approximation of the relative risk of dying.
+
+```{r}
+#coef(glm.hosp_death)
+exp(coef(glm.hosp_death))
+```
+
+By increasing the BMI by one unit,  the odds of dying during hospitalization have a one-fold increase
+
+```{r}
+exp(coef(glm.hosp_death)["bmi"]) 
+```
+By increasing the age by one year,  the odds of dying during hospitalization have a one-fold increase
+
+```{r}
+exp(coef(glm.hosp_death)["age"]) 
+```
+
+The odds of dying for patients with hepatic failure are 1.8 times higher in comparison to patients who don't have hepatic failure
+
+```{r}
+exp(coef(glm.hosp_death)["hepatic_failure1"])
+```
+The odds of dying for patients with cirrhosis are 2 times higher in comparison to patients who don't have cirrhosis
+
+```{r}
+exp(coef(glm.hosp_death)["cirrhosis1"])
+```
+
+### SVM used for prediction
+
+SVM (support vector machines) are well-known for classification problems. 
+The reason we chose SVM is due to the nature of our dataset, we have binary dependent variables and we would like to make predictions using our independent variables. 
+We used the SVM first by splitting the dataset evenly as training and test sets
+
+
+```{r}
+library(caret)
+intrain <- createDataPartition(y = p_survival_new_dropna$hospital_death, p= 0.5, list = FALSE)
+training <- p_survival_new_dropna[intrain,]
+testing <- p_survival_new_dropna[-intrain,]
+```
+
+Checking the dimensions of the training and testing frames
+
+```{r}
+dim(training); 
+dim(testing);
+```
+
+Convert the training data frame's hospital_death column to a factor variable for further steps:
+
+```{r}
+training[["hospital_death"]] = factor(training[["hospital_death"]])
+```
+
+We use the SVM method with linear kernel and name our method 'svm_linear'
+
+```{r, cache=TRUE}
+
+svm_Linear <- train(hospital_death ~., data = training, method = "svmLinear")
+svm_Linear
+```
+
+Predict the results, using the test data:
+
+```{r, results='hide'}
+test_pred <- predict(svm_Linear, newdata = testing)
+test_pred
+```
+
+#### Checking the accuracy
+
+From the accuracy check we can see that the SVM machine learning method is returning a satisfying result with the accuracy rate of 91.7%, 
+with this result we are able to perform statistically convincing prediction of the death rate of patients.
+
+```{r}
+confusionMatrix(table(test_pred, testing$hospital_death))
+```
+
+
+#### Neural networks
+
+Since neural network only deals with quantitative variables, we convert all the qualitative variables (factors) to binary ("dummy") variables, with the model.matrix function 
+
+```{r}
+m <- model.matrix( 
+  ~hospital_death + bmi + age + diabetes_mellitus + hepatic_failure + 
+                      immunosuppression + apache_3j_bodysystem + cirrhosis + leukemia + 
+                      lymphoma + solid_tumor_with_metastasis, 
+  data = p_survival_new_dropna
+)
+
+
+df=data.frame(m)
+
+intrain_ann <- createDataPartition(y = df$hospital_death, p= 0.5, list = FALSE)
+training_ann <- df[intrain_ann,]
+testing_ann <- df[-intrain_ann,]
+```
+
+
+
+
+```{r, cache=TRUE}
+# fit neural network
+nn=neuralnet(hospital_death1 ~.,data=training_ann, hidden = 1,
+ threshold = 0.01, stepmax = 1e+05,
+ rep = 1, startweights = NULL,
+ learningrate.limit = NULL,
+ learningrate.factor =
+     list(minus = 0.5, plus = 1.2),
+ learningrate=NULL, lifesign = "none",
+ lifesign.step = 1000, algorithm = "rprop+",
+ err.fct = "sse", act.fct = "logistic",
+ linear.output = TRUE, exclude = NULL,
+ constant.weights = NULL, likelihood = FALSE)
+```
+
+This is the graphical representation of the model with the weights on each connection.The black lines show the connections between each layer and the weights on each connection while the blue lines show the bias term added in each step. The bias can be thought as the intercept of a linear model.The net is essentially a black box so we cannot say that much about the fitting, the weights and the model. Suffice to say that the training algorithm has converged and therefore the model is ready to be used.
+```{r}
+# plot neural network
+plot(nn)
+```
+
+
+```{r, results='hide'}
+## Prediction using neural network
+Predict_ann=neuralnet::compute(nn,testing_ann)
+Predict_ann$net.result
+```
+
+
+```{r, results='hide'}
+# Converting probabilities into binary classes setting threshold level 0.5
+prob_ann <- Predict_ann$net.result
+pred_ann <- ifelse(prob_ann>0.5, 1, 0)
+pred_ann
+```
+Apparently the neural net is doing a better work as glm and vm with 91.8% accuracy at predicting patient survival.
+```{r}
+confusionMatrix(table(pred_ann, testing_ann$hospital_death))
+```
+As a conclusion, after testing the three different models for our binary response variable of
+patient survival, we obtained prediction accuracy rate of 92% with GLM, 91.72% with SVM,
+and 91.7 % with neural network. All of them are well-performing prediction models for our
+dataset. However, Neural Networks resemble black boxes a lot: the process of explaining and
+reasoning their outcome is much more challenging than explaining the outcome of GLM and
+SVM.
+
+
